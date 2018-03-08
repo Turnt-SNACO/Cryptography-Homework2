@@ -75,6 +75,7 @@ public class Encryptor {
 	public byte[] encrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
 		int blockCount = data.length / 16;
 		byte[][] blocks = toBlocks(data);
+		byte[] feedback;
 		switch (mode) {
 			case "ECB":
 				System.out.println("Mode: ECB");
@@ -95,12 +96,21 @@ public class Encryptor {
 				}
 				break;
 			case "CFB":
-				byte[] feedback = c.doFinal(iv);
+				feedback = c.doFinal(iv);
 				for (int block = 0; block < blockCount; block++) {
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
 					}
 					feedback = blocks[block];
+				}
+				break;
+			case "OFB":
+				feedback = c.doFinal(iv);
+				for (int block = 0; block < blockCount; block++) {
+					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+						feedback=c.doFinal(feedback);
+					}
 				}
 				break;
 		}
@@ -143,7 +153,6 @@ public class Encryptor {
 				}
 				break;
 			case "CFB":
-				//broken
 				byte[][] ciphertext = blocks;
 				for (int block = 0; block < blockCount; block++) {
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
@@ -154,6 +163,15 @@ public class Encryptor {
 						else {
 							blocks[block][byt] = (byte) (ciphertext[block][byt] ^ c.doFinal(ciphertext[block-1])[byt]);
 						}
+					}
+				}
+				break;
+			case "OFB":
+				byte[] feedback = c.doFinal(iv);
+				for (int block = 0; block < blockCount; block++) {
+					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+						feedback=c.doFinal(feedback);
 					}
 				}
 				break;
