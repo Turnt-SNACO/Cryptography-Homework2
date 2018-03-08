@@ -10,11 +10,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
-import main.AES;
-
 public class Encryptor {
 	String mode;
-	AES a;
 	byte[] key, iv;
 	Cipher c, d;
 	private final int BLOCK_SIZE = 16;
@@ -35,7 +32,6 @@ public class Encryptor {
 	 */
 	public Encryptor(String mode, byte[] key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
 		this.mode = mode;
-		a = new AES();
 		c = Cipher.getInstance("AES/ECB/NoPadding");
 		d = Cipher.getInstance("AES/ECB/NoPadding");
 		c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
@@ -148,19 +144,18 @@ public class Encryptor {
 				break;
 			case "CFB":
 				//broken
-				byte[] ciphertext = new byte[BLOCK_SIZE];
+				byte[] backfeed = new byte[BLOCK_SIZE];
 				byte[] holder = blocks[0];
 				for (int block = 0; block < blockCount; block++) {
 					if (block == 0) {
-						ciphertext = c.doFinal(iv);
+						backfeed = c.doFinal(iv);
 					}
 					else {
-						ciphertext=c.doFinal(holder);
-						holder = blocks[block-1];
+						backfeed=c.doFinal(holder);
 					}
-					
+					holder = blocks[block];
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						blocks[block][byt] = (byte) (blocks[block][byt] ^ ciphertext[byt]);
+						blocks[block][byt] = (byte) (blocks[block][byt] ^ backfeed[byt]);
 					}
 					
 				}
