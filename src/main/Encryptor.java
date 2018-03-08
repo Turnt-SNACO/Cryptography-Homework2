@@ -144,20 +144,17 @@ public class Encryptor {
 				break;
 			case "CFB":
 				//broken
-				byte[] backfeed = new byte[BLOCK_SIZE];
-				byte[] holder = blocks[0];
+				byte[][] ciphertext = blocks;
 				for (int block = 0; block < blockCount; block++) {
-					if (block == 0) {
-						backfeed = c.doFinal(iv);
-					}
-					else {
-						backfeed=c.doFinal(holder);
-					}
-					holder = blocks[block];
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						blocks[block][byt] = (byte) (blocks[block][byt] ^ backfeed[byt]);
+						if (block == 0) {
+							byte[] temp = c.doFinal(iv);
+							blocks[block][byt] = (byte) (ciphertext[block][byt] ^ temp[byt]);
+						}
+						else {
+							blocks[block][byt] = (byte) (ciphertext[block][byt] ^ c.doFinal(ciphertext[block-1])[byt]);
+						}
 					}
-					
 				}
 				break;
 		}
