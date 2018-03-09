@@ -1,5 +1,11 @@
 package main;
 
+import java.awt.Point;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.Raster;
+import java.io.File;
+import java.io.IOException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Random;
@@ -9,6 +15,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
+import javax.imageio.ImageIO;
 
 public class Encryptor {
 	private final int BLOCK_SIZE = 16;
@@ -196,6 +203,56 @@ public class Encryptor {
 			System.out.println("BAD KEY");
 			return null;
 		}
+	}
+	/**
+	 * Encrypts an image located at pathToInput while preserving the header and saves to pathToOutput.
+	 * Returns false if unsuccessful.
+	 * @param pathToInput
+	 * @param pathToOutput
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 * @return boolean
+	 */
+	public boolean encryptImage(String pathToInput, String pathToOutput) throws IllegalBlockSizeException, BadPaddingException {
+		File input = new File(pathToInput);
+		File output = new File(pathToOutput);
+		try {
+		BufferedImage image = ImageIO.read(input);
+		byte[] pixels = ( (DataBufferByte) image.getRaster().getDataBuffer() ).getData();
+		byte[] encrypted = encrypt(pixels);
+		BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+		outImage.setData(Raster.createRaster(outImage.getSampleModel(), new DataBufferByte(encrypted, encrypted.length), new Point()));
+		ImageIO.write(outImage, "jpg", output);
+		}catch (IOException e) {
+			System.out.println("Error with image path!");
+			return false;
+		}
+		return true;
+	}
+	/**
+	 * Decrypts an image located at pathToInput while preserving the header and saves to pathToOutput.
+	 * Returns false if unsuccessful.
+	 * @param pathToInput
+	 * @param pathToOutput
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 * @return boolean
+	 */
+	public boolean decryptImage(String pathToInput, String pathToOutput) throws IllegalBlockSizeException, BadPaddingException {
+		File input = new File(pathToInput);
+		File output = new File(pathToOutput);
+		try {
+		BufferedImage image = ImageIO.read(input);
+		byte[] pixels = ( (DataBufferByte) image.getRaster().getDataBuffer() ).getData();
+		byte[] decrypted = decrypt(pixels);
+		BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+		outImage.setData(Raster.createRaster(outImage.getSampleModel(), new DataBufferByte(decrypted, decrypted.length), new Point()));
+		ImageIO.write(outImage, "jpg", output);
+		}catch (IOException e) {
+			System.out.println("Error with image path!");
+			return false;
+		}
+		return true;
 	}
 
 	/**
