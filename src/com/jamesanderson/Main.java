@@ -257,8 +257,11 @@ public class Main {
                 m.encryptImage("land2.jpg", "land2_ofb.jpg");
                 System.out.println("\t\tEncrypting land3.jpg -> land3_ofb.jpg\n");
                 m.encryptImage("land3.jpg", "land3_ofb.jpg");
+                System.out.println("\nObservations: ECB mode does not completely conceal information.  \n\tUnlike CBC, CFB, and OFB, general patterns from the original \n\timage are still distinguishable after encryption.");
 
-                m = new Encryptor("CFB",bkey,biv);
+				System.out.println("\nError Propagation Tests:");
+	            System.out.println("\tECB Mode:");
+                m = new Encryptor("ECB",bkey,biv);
                 System.out.println();
                 byte[] data = "The quick brown fox jumps over the lazy dog".getBytes();
                 System.out.println("\tInitial Data: "+new String(data));
@@ -267,7 +270,7 @@ public class Main {
                 byte[] decrypted = m.decrypt(encrypted);
                 System.out.println("\tDecrypted Data: "+new String(decrypted).substring(0, decrypted.length-m.getPostfix()-1));
 
-
+				/* TODO: Insert corruption test in plaintext, and ciphertext for all 4 modes*/
 
             }
 
