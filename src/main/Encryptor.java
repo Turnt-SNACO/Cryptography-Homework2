@@ -11,17 +11,17 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
 public class Encryptor {
-	String mode;
-	byte[] key, iv;
-	Cipher c, d;
 	private final int BLOCK_SIZE = 16;
+
+	private String mode;
+	private byte[] key, iv;
+	private Cipher c, d;
 
 	/**
 	 * Initializes the Encryptor with no padding and a random IV
 	 * 
-	 * The Cipher is initialized with ECB
-	 * mode but the mode will not do anything since blocks will be handled manually
-	 * by the Encryptor
+	 * The Cipher is initialized with ECB mode but the mode will not do anything
+	 * since blocks will be handled manually by the Encryptor
 	 * 
 	 * @param mode
 	 * @param key
@@ -30,7 +30,8 @@ public class Encryptor {
 	 * @throws InvalidKeyException
 	 * @author James Anderson
 	 */
-	public Encryptor(String mode, byte[] key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+	public Encryptor(String mode, byte[] key)
+			throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
 		this.mode = mode;
 		c = Cipher.getInstance("AES/ECB/NoPadding");
 		d = Cipher.getInstance("AES/ECB/NoPadding");
@@ -41,13 +42,12 @@ public class Encryptor {
 		Random r = new Random();
 		r.nextBytes(iv);
 	}
-	
+
 	/**
 	 * Initializes the Encryptor with no padding with a specified IV
 	 * 
-	 * The Cipher is initialized with ECB
-	 * mode but the mode will not do anything since blocks will be handled manually
-	 * by the Encryptor
+	 * The Cipher is initialized with ECB mode but the mode will not do anything
+	 * since blocks will be handled manually by the Encryptor
 	 * 
 	 * @param mode
 	 * @param key
@@ -56,10 +56,11 @@ public class Encryptor {
 	 * @throws InvalidKeyException
 	 * @author James Anderson
 	 */
-	public Encryptor(String mode, byte[] key, byte[] iv) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
-		this(mode,key);
+	public Encryptor(String mode, byte[] key, byte[] iv)
+			throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
+		this(mode, key);
 		iv = new byte[BLOCK_SIZE];
-		this.iv=iv;
+		this.iv = iv;
 	}
 
 	/**
@@ -70,10 +71,14 @@ public class Encryptor {
 	 * @return byte[]
 	 * @throws InvalidKeyException
 	 * @author James Anderson
-	 * @throws BadPaddingException 
+	 * @throws BadPaddingException
 	 */
 	public byte[] encrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
+		System.out.println("Blocks: " + ((double) data.length / 16.0));
 		int blockCount = data.length / 16;
+		// if (((double)data.length / 16.0) % 16 != 0) {
+		// blockCount+=1;
+		// }
 		byte[][] blocks = toBlocks(data);
 		byte[] feedback;
 		switch (mode) {
@@ -84,32 +89,40 @@ public class Encryptor {
 				}
 				break;
 			case "CBC":
-				for (int byt = 0; byt < BLOCK_SIZE; byt++){
-					blocks[0][byt]= (byte) (blocks[0][byt] ^ iv[byt]);
+				System.out.println("Mode: CBC");
+				for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+					blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
 				}
 				blocks[0] = c.doFinal(blocks[0]);
 				for (int block = 1; block < blockCount; block++) {
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						blocks[block][byt] = (byte) (blocks[block][byt] ^ blocks[block-1][byt]);
+						blocks[block][byt] = (byte) (blocks[block][byt] ^ blocks[block - 1][byt]);
 					}
 					blocks[block] = c.doFinal(blocks[block]);
 				}
 				break;
 			case "CFB":
-				feedback = c.doFinal(iv);
+				System.out.println("Mode: CFB");
+				byte[][] ciphertext = blocks;
+				feedback = iv;
 				for (int block = 0; block < blockCount; block++) {
+					feedback = c.doFinal(feedback);
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+						ciphertext[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+
 					}
-					feedback = blocks[block];
+					feedback = ciphertext[block];
 				}
+				blocks = ciphertext;
 				break;
+
 			case "OFB":
+				System.out.println("Mode: OFB");
 				feedback = c.doFinal(iv);
 				for (int block = 0; block < blockCount; block++) {
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-						feedback=c.doFinal(feedback);
+						feedback = c.doFinal(feedback);
 					}
 				}
 				break;
@@ -129,55 +142,57 @@ public class Encryptor {
 		int blockCount = data.length / 16;
 		byte[][] blocks = toBlocks(data);
 		try {
-		switch (mode) {
-			case "ECB":
-				System.out.println("Mode: ECB");
-				for (int block = 0; block < blockCount; block++) {
-					blocks[block] = d.doFinal(blocks[block]);
-				}
-				break;
-			case "CBC":
-				byte[] prev = new byte[BLOCK_SIZE];
-				prev=blocks[0];
-				blocks[0] = d.doFinal(blocks[0]);
-				for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-					blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
-				}
-				for (int block = 1; block < blockCount; block++) {
-					byte[] nextPrev = blocks[block];
-					blocks[block]= d.doFinal(blocks[block]);
-					for (int byt = 0; byt < 16; byt++) {
-						blocks[block][byt] = (byte) (blocks[block][byt] ^ prev[byt]);
+			switch (mode) {
+				case "ECB":
+					System.out.println("Mode: ECB");
+					for (int block = 0; block < blockCount; block++) {
+						blocks[block] = d.doFinal(blocks[block]);
 					}
-					prev=nextPrev;
-				}
-				break;
-			case "CFB":
-				byte[][] ciphertext = blocks;
-				for (int block = 0; block < blockCount; block++) {
+					break;
+				case "CBC":
+					byte[] prev = new byte[BLOCK_SIZE];
+					prev = blocks[0];
+					blocks[0] = d.doFinal(blocks[0]);
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						if (block == 0) {
-							byte[] temp = c.doFinal(iv);
-							blocks[block][byt] = (byte) (ciphertext[block][byt] ^ temp[byt]);
+						blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
+					}
+					for (int block = 1; block < blockCount; block++) {
+						byte[] nextPrev = blocks[block];
+						blocks[block] = d.doFinal(blocks[block]);
+						for (int byt = 0; byt < 16; byt++) {
+							blocks[block][byt] = (byte) (blocks[block][byt] ^ prev[byt]);
 						}
-						else {
-							blocks[block][byt] = (byte) (ciphertext[block][byt] ^ c.doFinal(ciphertext[block-1])[byt]);
+						prev = nextPrev;
+					}
+					break;
+				case "CFB":
+					byte[][] ciphertext = new byte[blockCount][BLOCK_SIZE];
+					for (int x = 0; x < blockCount; x++) {
+						for (int y = 0; y < BLOCK_SIZE; y++) {
+							ciphertext[x][y] = blocks[x][y];
 						}
 					}
-				}
-				break;
-			case "OFB":
-				byte[] feedback = c.doFinal(iv);
-				for (int block = 0; block < blockCount; block++) {
-					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-						feedback=c.doFinal(feedback);
+					byte[] backfeed = iv;
+					for (int block = 0; block < blockCount; block++) {
+						backfeed = c.doFinal(backfeed);
+						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+							blocks[block][byt] = (byte) (blocks[block][byt] ^ backfeed[byt]);
+						}
+						backfeed = ciphertext[block];
 					}
-				}
-				break;
-		}
-		return toData(blocks);
-		}	catch (BadPaddingException e) {
+					break;
+				case "OFB":
+					byte[] feedback = c.doFinal(iv);
+					for (int block = 0; block < blockCount; block++) {
+						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+							blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+							feedback = c.doFinal(feedback);
+						}
+					}
+					break;
+			}
+			return toData(blocks);
+		} catch (BadPaddingException e) {
 			System.out.println("BAD KEY");
 			return null;
 		}
@@ -192,10 +207,17 @@ public class Encryptor {
 	 */
 	private byte[][] toBlocks(byte[] data) {
 		int blockCount = data.length / 16;
+		// if (((double)data.length / 16.0) % 16 != 0) {
+		// blockCount+=1;
+		// }
 		byte[][] blocks = new byte[blockCount][BLOCK_SIZE];
 		for (int block = 0; block < blockCount; block++) {
 			for (int byt = 16 * block, dataByte = 0; byt < 16 * block + 16; byt++, dataByte++) {
-				blocks[block][dataByte] = data[byt];
+				try {
+					blocks[block][dataByte] = data[byt];
+				} catch (ArrayIndexOutOfBoundsException e) {
+					blocks[block][dataByte] = (byte) 0x00;
+				}
 			}
 		}
 		return blocks;
@@ -217,5 +239,9 @@ public class Encryptor {
 			}
 		}
 		return data;
+	}
+
+	public byte[] getKey() {
+		return key;
 	}
 }
