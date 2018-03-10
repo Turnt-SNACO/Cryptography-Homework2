@@ -146,18 +146,18 @@ public class Main {
 
 				    for (String file : files){
 					    java.net.URL imgURL = getClass().getResource("/res/"+file);
-					    System.out.println("\t\tEncrypting " + file + " -> ErrorTests/"
+					    System.out.println("\t\tEncrypting " + file + " -> PropagationTests/"
 							    + dir + "/" + test + "/enc_"+file);
-					    System.out.println("\t\tDecrypting ErrorTests/ecb/enc_" + file + " -> ErrorTests/"
+					    System.out.println("\t\tDecrypting PropagationTests/ecb/enc_" + file + " -> PropagationTests/"
 							    + dir + "/" + test + "/dec_"+file);
 					    if (test.equals(tests[0])) {
-						    m.encryptAndDecryptImageWithCtError(imgURL, "ErrorTests/"
-								    + dir + "/" + test + "/enc_" + file, "ErrorTests/" + dir + "/"
+						    m.encryptAndDecryptImageWithCtError(imgURL, "PropagationTests/"
+								    + dir + "/" + test + "/enc_" + file, "PropagationTests/" + dir + "/"
 								    + test + "/dec_" + file);
 					    }
 					    else {
-						    m.encryptAndDecryptImageWithPtError(imgURL, "ErrorTests/"
-								    + dir + "/" + test + "/enc_" + file, "ErrorTests/" + dir + "/"
+						    m.encryptAndDecryptImageWithPtError(imgURL, "PropagationTests/"
+								    + dir + "/" + test + "/enc_" + file, "PropagationTests/" + dir + "/"
 								    + test + "/dec_" + file);
 					    }
 				    }

@@ -8,6 +8,7 @@
 package com.jamesanderson;
 
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.Nullable;
 
 import java.awt.Point;
 import java.awt.image.BufferedImage;
@@ -42,29 +43,24 @@ class Encryptor {
 	 * @throws NoSuchAlgorithmException ignore
 	 * @throws NoSuchPaddingException ignore
 	 * @throws InvalidKeyException ignore
-	 * @author James Anderson
+	 *
 	 */
 	Encryptor(String mode, byte[] key, byte[] iv)
 			throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
 		this.mode = mode;
-		//this.key = key;
 		this.iv = iv;
 		c = new AES();
-		//d = new AES();
-		//c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
-		//d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
 		c.setKey(key);
-		//d.setKey(key);
 	}
 
 	/**
-	 * Encrypts data using AES
+	 * Encrypts data using AES block cipher
 	 *
 	 * @param data - byte[] containing data to encrypt
 	 * @return byte[]
 	 * @throws BadPaddingException ignore
 	 * @throws IllegalBlockSizeException ignore
-	 * @author James Anderson
+	 *
 	 */
 	byte[] encrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
 
@@ -122,13 +118,13 @@ class Encryptor {
 	}
 
 	/**
-	 * Encrypts data using AES
+	 * Encrypts data using AES block cipher
 	 *
 	 * @param data - byte[] containing data to encrypt
 	 * @return byte[]
 	 * @throws BadPaddingException ignore
 	 * @throws IllegalBlockSizeException ignore
-	 * @author James Anderson
+	 *
 	 */
 	private byte[] encryptWithError(byte[] data, boolean plaintextError) throws IllegalBlockSizeException, BadPaddingException, NullPointerException {
 		Random r = new Random();
@@ -146,14 +142,24 @@ class Encryptor {
 		}
 	}
 
-	private int corruptedBytes(byte[] original, byte[] corrupted){
+	/**
+	 * Gets the number of blocks affected by data corruption
+	 * @param original - the original data before encryption
+	 * @param corrupted - the decrypted data after encryption
+	 * @return int
+	 */
+	private int corruptedBlocks(byte[] original, byte[] corrupted){
 		int count = 0;
 		for (int x = 0; x < original.length; x++) {
 			if (original[x]!=corrupted[x]){
 				count++;
 			}
 		}
-		return count;
+		int blocksCorrupted=count/16;
+		if (count%16!=0){
+			blocksCorrupted+=1;
+		}
+		return blocksCorrupted;
 	}
 
 	/**
@@ -162,8 +168,9 @@ class Encryptor {
 	 * @param data - byte[] to be decrypted
 	 * @return byte[], null if unsuccessful
 	 * @throws IllegalBlockSizeException ignore
-	 * @author James Anderson
+	 *
 	 */
+	@Nullable
 	private byte[] decrypt(byte[] data) throws IllegalBlockSizeException {
 		// int blockCount = data.length / 16;
 		byte[][] blocks = toBlocks(data);
@@ -281,13 +288,34 @@ class Encryptor {
 		}
 		return true;
 	}
+
+	/**
+	 * Calls encryptAndDecryptImageWithError for plaintext error
+	 * @param inputURL - URL to input file
+	 * @param outputUrlEnc - String URL to encrypted output file
+	 * @param outputUrlDec - String URL to decrypted output file
+	 */
 	void encryptAndDecryptImageWithPtError(URL inputURL, String outputUrlEnc, String outputUrlDec){
 		encryptAndDecryptImageWithError(inputURL, outputUrlEnc, outputUrlDec, true);
 	}
+
+	/**
+	 * Calls encryptAndDecryptImageWithError for ciphertext error
+	 * @param inputURL - URL to input file
+	 * @param outputUrlEnc - String URL to encrypted output file
+	 * @param outputUrlDec - String URL to decrypted output file
+	 */
 	void encryptAndDecryptImageWithCtError(URL inputURL, String outputUrlEnc, String outputUrlDec){
 		encryptAndDecryptImageWithError(inputURL, outputUrlEnc, outputUrlDec, false);
 	}
 
+	/**
+	 * Encrypts and decrypts images and introduces specified error
+	 * @param inputURL - URL to input file
+	 * @param outputUrlEnc - String URL to encrypted output file
+	 * @param outputUrlDec - String URL to decrypted output file
+	 * @param ptError - true for plaintext error, false for ciphertext error
+	 */
 	private void encryptAndDecryptImageWithError(URL inputURL, String outputUrlEnc, String outputUrlDec, boolean ptError) {
 		//File input = new File(inputURL);
 		File outputEnc = new File(outputUrlEnc);
@@ -297,7 +325,7 @@ class Encryptor {
 			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
 			byte[] encrypted = encryptWithError(pixels, ptError);
 			byte[] decrypted = decrypt(encrypted);
-			int lost = corruptedBytes(pixels,decrypted);
+			int lost = corruptedBlocks(pixels,decrypted);
 			System.out.println("\t\t\tBytes lost: "+lost);
 			System.out.println("\t\t\t%Corrupted = "+getPercentCorrupted(pixels.length,lost));
 
@@ -317,13 +345,10 @@ class Encryptor {
 		}
 
 	}
+	@Contract(pure = true)
 	private double getPercentCorrupted(int dataLength, int lost){
-		double blocksCorrupted=lost/16;
-		if (lost%16!=0){
-			blocksCorrupted+=1;
-		}
-		double dl = dataLength+0.0;
-		return blocksCorrupted/dl;
+		double dl = dataLength+0.0/16;
+		return lost/dl*100;
 	}
 	public void encryptAndDecryptImage(URL inputURL, String outputUrlEnc, String outputUrlDec) {
 		//File input = new File(inputURL);
@@ -356,7 +381,7 @@ class Encryptor {
 	 *
 	 * @param data - data to be transformed into array of 16 byte blocks
 	 * @return byte[][]
-	 * @author James Anderson
+	 *
 	 */
 	private byte[][] toBlocks(byte[] data) {
 		int blockCount = data.length / 16;
@@ -386,7 +411,7 @@ class Encryptor {
 	 *
 	 * @param blocks - array of 16 byte blocks to be transformed to byte array
 	 * @return byte[]
-	 * @author James Anderson
+	 *
 	 */
 	@Contract(pure = true)
 	private byte[] toData(byte[][] blocks) {
