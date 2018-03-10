@@ -1,4 +1,13 @@
+/*
+	Author: James Anderson
+	Using: AES.java and Util.java from http://www.devkb.org/java/50-AES-256-bits-encrypter-decrypter-Java-source-code
+	Class: ICSI 426
+	Semester: Spring 2018
+ */
+
 package com.jamesanderson;
+
+import org.jetbrains.annotations.Contract;
 
 import java.awt.Point;
 import java.awt.image.BufferedImage;
@@ -11,10 +20,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
 import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
 import javax.imageio.ImageIO;
 
 class Encryptor {
@@ -23,13 +30,10 @@ class Encryptor {
 	private String mode;
 	//private byte[] key;
 	private byte[] iv;
-	private Cipher c, d;
+	private AES c, d;
 
 	/**
-	 * Initializes the Encryptor with no padding with a specified IV
-	 *
-	 * The Cipher is initialized with ECB mode but the mode will not do anything
-	 * since blocks will be handled manually by the Encryptor
+	 * Constructs the Encryptor with specified Key and IV
 	 *
 	 * @param mode - ECB, CBC, CFB, OFB
 	 * @param key - byte[16]
@@ -44,10 +48,12 @@ class Encryptor {
 		this.mode = mode;
 		//this.key = key;
 		this.iv = iv;
-		c = Cipher.getInstance("AES/ECB/NoPadding");
-		d = Cipher.getInstance("AES/ECB/NoPadding");
-		c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
-		d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
+		c = new AES();
+		d = new AES();
+		//c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
+		//d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
+		c.setKey(key);
+		d.setKey(key);
 	}
 
 	/**
@@ -67,26 +73,26 @@ class Encryptor {
 		switch (mode) {
 			case "ECB":
 				for (int block = 0; block < blockCount; block++) {
-					blocks[block] = c.doFinal(blocks[block]);
+					blocks[block] = c.encrypt(blocks[block]);
 				}
 				break;
 			case "CBC":
 				for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 					blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
 				}
-				blocks[0] = c.doFinal(blocks[0]);
+				blocks[0] = c.encrypt(blocks[0]);
 				for (int block = 1; block < blockCount; block++) {
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						blocks[block][byt] = (byte) (blocks[block][byt] ^ blocks[block - 1][byt]);
 					}
-					blocks[block] = c.doFinal(blocks[block]);
+					blocks[block] = c.encrypt(blocks[block]);
 				}
 				break;
 			case "CFB":
 				byte[][] ciphertext = blocks;
 				feedback = iv;
 				for (int block = 0; block < blockCount; block++) {
-					feedback = c.doFinal(feedback);
+					feedback = c.encrypt(feedback);
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						ciphertext[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
 
@@ -97,11 +103,110 @@ class Encryptor {
 				break;
 
 			case "OFB":
-				feedback = c.doFinal(iv);
+				feedback = c.encrypt(iv);
 				for (int block = 0; block < blockCount; block++) {
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-						feedback = c.doFinal(feedback);
+						feedback = c.encrypt(feedback);
+					}
+				}
+				break;
+		}
+		return toData(blocks);
+	}
+	
+	/**
+	 * Encrypts data using AES
+	 *
+	 * @param data - byte[] containing data to encrypt
+	 * @return byte[]
+	 * @throws BadPaddingException ignore
+	 * @throws IllegalBlockSizeException ignore
+	 * @author James Anderson
+	 */
+	private byte[] encryptWithError(byte[] data, boolean plaintextError) throws IllegalBlockSizeException, BadPaddingException {
+		byte[][] blocks = toBlocks(data);
+		int blockCount = blocks.length;
+		System.out.print("\t\tIntroducing error in block "+blockCount/3+" of ");
+		if (plaintextError)
+			System.out.println("plaintext...");
+		else
+			System.out.println("ciphertext...");
+		byte[] feedback;
+		byte[] error = {0,3,4,1,2,6,2,9,6,7,1,5,0,6,3,8};
+		switch (mode) {
+			case "ECB":
+				for (int block = 0; block < blockCount; block++) {
+					if (block==blockCount/3){
+						if (plaintextError) {
+							blocks[block] = c.encrypt(error);
+						}else {
+							blocks[block] = error;
+						}
+					}
+					else
+						blocks[block] = c.encrypt(blocks[block]);
+				}
+				break;
+			case "CBC":
+				for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+					blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
+				}
+				blocks[0] = c.encrypt(blocks[0]);
+				for (int block = 1; block < blockCount; block++) {
+					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+						if (block==blockCount/3){
+							if (plaintextError) {
+								blocks[block] = c.encrypt(error);
+							}
+							else{
+								blocks[block] = error;
+							}
+						}
+						else
+							blocks[block][byt] = (byte) (blocks[block][byt] ^ blocks[block - 1][byt]);
+					}
+					blocks[block] = c.encrypt(blocks[block]);
+				}
+				break;
+			case "CFB":
+				byte[][] ciphertext = blocks;
+				feedback = iv;
+				for (int block = 0; block < blockCount; block++) {
+					feedback = c.encrypt(feedback);
+					if (block==blockCount/3){
+						if (plaintextError) {
+							blocks[block] = c.encrypt(error);
+						}
+						else{
+							blocks[block] = error;
+						}
+					}
+					else {
+						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+							ciphertext[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+						}
+					}
+					feedback = ciphertext[block];
+				}
+				blocks = ciphertext;
+				break;
+
+			case "OFB":
+				feedback = c.encrypt(iv);
+				for (int block = 0; block < blockCount; block++) {
+					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
+						if (block==blockCount/3){
+							if (plaintextError) {
+								blocks[block] = c.encrypt(error);
+							}
+							else {
+								blocks[block] = error;
+							}
+						}
+						else
+							blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
+						feedback = c.encrypt(feedback);
 					}
 				}
 				break;
@@ -125,19 +230,19 @@ class Encryptor {
 			switch (mode) {
 				case "ECB":
 					for (int block = 0; block < blockCount; block++) {
-						blocks[block] = d.doFinal(blocks[block]);
+						blocks[block] = d.decrypt(blocks[block]);
 					}
 					break;
 				case "CBC":
 					byte[] prev = new byte[BLOCK_SIZE];
 					System.arraycopy(blocks[0],0,prev,0,BLOCK_SIZE);
-					blocks[0] = d.doFinal(blocks[0]);
+					blocks[0] = d.decrypt(blocks[0]);
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
 					}
 					for (int block = 1; block < blockCount; block++) {
 						byte[] nextPrev = blocks[block];
-						blocks[block] = d.doFinal(blocks[block]);
+						blocks[block] = d.decrypt(blocks[block]);
 						for (int byt = 0; byt < 16; byt++) {
 							blocks[block][byt] = (byte) (blocks[block][byt] ^ prev[byt]);
 						}
@@ -151,7 +256,7 @@ class Encryptor {
 					}
 					byte[] backfeed = iv;
 					for (int block = 0; block < blockCount; block++) {
-						backfeed = c.doFinal(backfeed);
+						backfeed = c.encrypt(backfeed);
 						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 							blocks[block][byt] = (byte) (blocks[block][byt] ^ backfeed[byt]);
 						}
@@ -159,17 +264,17 @@ class Encryptor {
 					}
 					break;
 				case "OFB":
-					byte[] feedback = c.doFinal(iv);
+					byte[] feedback = c.encrypt(iv);
 					for (int block = 0; block < blockCount; block++) {
 						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 							blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-							feedback = c.doFinal(feedback);
+							feedback = c.encrypt(feedback);
 						}
 					}
 					break;
 			}
 			return toData(blocks);
-		} catch (BadPaddingException e) {
+		} catch (Exception e) {
 			System.out.println("BAD KEY");
 			return null;
 		}
@@ -202,6 +307,7 @@ class Encryptor {
 		return true;
 	}
 
+
 	/**
 	 * Decrypts an image located at pathToInput while preserving the header and
 	 * saves to pathToOutput. Returns false if unsuccessful.
@@ -224,13 +330,78 @@ class Encryptor {
 					BufferedImage.TYPE_3BYTE_BGR);
 			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
 					new DataBufferByte(decrypted, decrypted.length), new Point()));
-			ImageIO.write(outImage, "jpg", output);
+			ImageIO.write(outImage, "bmp", output);
 		} catch (IOException e) {
 			System.out.println("Error with image path!");
 			return false;
 		}
 		return true;
 	}
+	public void encryptAndDecryptImageWithPtError(String inputURL, String outputUrlEnc, String outputUrlDec){
+		encryptAndDecryptImageWithError(inputURL, outputUrlEnc, outputUrlDec, true);
+	}
+	public void encryptAndDecryptImageWithCtError(String inputURL, String outputUrlEnc, String outputUrlDec){
+		encryptAndDecryptImageWithError(inputURL, outputUrlEnc, outputUrlDec, false);
+	}
+
+
+	public void encryptAndDecryptImageWithError(String inputURL, String outputUrlEnc, String outputUrlDec, boolean ptError) {
+		File input = new File(inputURL);
+		File outputEnc = new File(outputUrlEnc);
+		File outputDec = new File(outputUrlDec);
+		try {
+			BufferedImage image = ImageIO.read(input);
+			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+			byte[] encrypted = encryptWithError(pixels, ptError);
+			byte[] decrypted = decrypt(encrypted);
+
+			BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(),
+					BufferedImage.TYPE_3BYTE_BGR);
+			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
+					new DataBufferByte(encrypted, encrypted.length), new Point()));
+			ImageIO.write(outImage, "bmp", outputEnc);
+			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
+					new DataBufferByte(decrypted, decrypted.length), new Point()));
+			ImageIO.write(outImage, "bmp", outputDec);
+		} catch (IOException e) {
+			System.out.println("Error with image path!");
+		} catch (IllegalBlockSizeException e) {
+			e.printStackTrace();
+		} catch (BadPaddingException e) {
+			e.printStackTrace();
+		}
+
+	}
+
+
+	public void encryptAndDecryptImage(String inputURL, String outputUrlEnc, String outputUrlDec) {
+		File input = new File(inputURL);
+		File outputEnc = new File(outputUrlEnc);
+		File outputDec = new File(outputUrlDec);
+		try {
+			BufferedImage image = ImageIO.read(input);
+			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+			byte[] encrypted = encrypt(pixels);
+			byte[] decrypted = decrypt(encrypted);
+
+			BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(),
+					BufferedImage.TYPE_3BYTE_BGR);
+			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
+					new DataBufferByte(encrypted, encrypted.length), new Point()));
+			ImageIO.write(outImage, "bmp", outputEnc);
+			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
+					new DataBufferByte(decrypted, decrypted.length), new Point()));
+			ImageIO.write(outImage, "bmp", outputDec);
+		} catch (IOException e) {
+			System.out.println("Error with image path!");
+		} catch (IllegalBlockSizeException e) {
+			e.printStackTrace();
+		} catch (BadPaddingException e) {
+			e.printStackTrace();
+		}
+	}
+
+
 
 	/**
 	 * Transforms byte[] to byte[][] (Array of blocks)
@@ -247,7 +418,7 @@ class Encryptor {
 		}
 		byte[][] blocks = new byte[blockCount][BLOCK_SIZE];
 		for (int block = 0; block < blockCount; block++) {
-			for (int byt = 16 * block, dataByte = 0; byt < 16 * block + 16; byt++, dataByte++) {
+			for (int byt = 16  *block, dataByte = 0; byt < 16 *  block + 16; byt++, dataByte++) {
 				try {
 					blocks[block][dataByte] = data[byt];
 				} catch (ArrayIndexOutOfBoundsException e) {
@@ -269,6 +440,7 @@ class Encryptor {
 	 * @return byte[]
 	 * @author James Anderson
 	 */
+	@Contract(pure = true)
 	private byte[] toData(byte[][] blocks) {
 		int blockCount = blocks.length;
 		byte[] data = new byte[blockCount * 16];
@@ -278,13 +450,5 @@ class Encryptor {
 			}
 		}
 		return data;
-	}
-	/*
-	public byte[] getKey() {
-		return key;
-	}
-	*/
-	int getPostfix() {
-		return postfix;
 	}
 }
