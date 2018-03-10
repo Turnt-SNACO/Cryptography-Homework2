@@ -10,6 +10,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -19,26 +21,27 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 public class Main {
-	private static boolean imageMode = false, stringMode = false, decryptMode = false, demoMode=false;
-	private static String input = null, output = null, mode = null, key = null, iv = null;
-	private static Encryptor e;
-	private static byte[] byteKey, byteIV;
+	private  boolean imageMode = false, stringMode = false, decryptMode = false, demoMode=false;
+	private  String input = null, output = null, mode = null, key = null, iv = null;
+	private  Encryptor e;
+	private  byte[] byteKey, byteIV;
     public static void main(String[] args)
             throws NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        readArgs(args);
-        if (imageMode) {
-            doImage();
-        } else if (stringMode) {
-            doString();
-        } else if (demoMode) {
-            doDemo();
+    	Main m = new Main();
+    	m.readArgs(args);
+        if (m.imageMode) {
+            m.doImage();
+        } else if (m.stringMode) {
+            m.doString();
+        } else if (m.demoMode) {
+            m.doDemo();
         } else {
-            System.out.println("Unexpected error occurred.");
+            System.out.println("Unexpected error occurred: Could not discern execution mode.");
         }
 
     }
 
-    private static void doString() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
+    private  void doString() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
 	    try {
 		    e = new Encryptor(mode, byteKey, byteIV);
 		    byte[] encrypted = e.encrypt(input.getBytes());
@@ -60,14 +63,14 @@ public class Main {
 	    }
     }
 
-    private static void doImage() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
+    private  void doImage() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
 	    try {
 		    e = new Encryptor(mode, byteKey, byteIV);
-		    if (decryptMode && e.decryptImage(input, output)) {
+		    if (decryptMode && e.decryptImage(new URL(input), output)) {
 			    System.out.println(
 					    "Successfully decrypted " + input + " to " + output + " using " + mode + " mode.");
 		    }
-		    else if (e.encryptImage(input, output)) {
+		    else if (e.encryptImage(new URL(input), output)) {
 			    System.out.println(
 					    "Successfully encrypted " + input + " to " + output + " using " + mode + " mode.");
 		    }
@@ -79,11 +82,13 @@ public class Main {
 		    System.out.println("Invalid operation mode. Use ECB, CFB, CFB, or OFB.");
 	    } catch (InvalidKeyException i) {
 		    System.out.println("Invalid key!");
+	    } catch (MalformedURLException e1) {
+		    System.out.println("Invalid file path.");
 	    }
     }
 
 
-    private static void doDemo() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
+    private  void doDemo() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
 	    System.out.println("Starting demo mode...\n");
 	    byte[] bkey = "JAMESANDERSON123".getBytes();
 	    byte[] biv = "ANDERSON123JAMES".getBytes();
@@ -91,7 +96,7 @@ public class Main {
 	    System.out.println("IV set to ANDERSON123JAMES -> "+new String(biv)+"\n");
 	    Encryptor m;
 	    try {
-		    String[] dirs = {"ErrorTests","EncryptionTests"};
+		    String[] dirs = {"PropagationTests","EncryptionTests"};
 		    String[] subdirs = {"ecb","cbc","cfb","ofb"};
 		    String[] tests = {"CipherTextError","PlainTextError"};
 		    for (String dir : dirs){
@@ -115,14 +120,6 @@ public class Main {
 			    }
 		    }
 
-		    System.out.println("Calculating sum of letters in name modulo 26...");
-		    int sum = (int)'J'+(int)'A'+(int)'M'+(int)'E'+(int)'S'+(int)'A'+
-				    (int)'N'+(int)'D'+(int)'E'+(int)'R'+(int)'S'+(int)'O'+(int)'N'-(65*13);
-		    System.out.println("J + A + M + E + S + A + N + D + E + R + S + O + N = "+sum);
-		    System.out.println(""+sum+" (mod 26): "+sum%26);
-		    System.out.println(""+sum%26+" -> rectangle.png");
-		    System.out.println();
-
 		    String[] opmodes = {"ECB","CBC","CFB","OFB"};
 		    String[] files = {"rectangle.jpg","land1.jpg","land2.jpg","land3.jpg"};
 		    System.out.println("Encryption tests:");
@@ -133,14 +130,11 @@ public class Main {
 			    for (String file : files) {
 				    System.out.println("\t\tEncrypting " + file +
 						    " -> EncryptionTests/" + dir + "/enc_"+file);
-				    m.encryptImage("src/res/" + file, "EncryptionTests/"
+				    java.net.URL imgURL = getClass().getResource("/res/"+file);
+				    m.encryptImage(imgURL, "EncryptionTests/"
 						    + dir + "/enc_" + file);
 			    }
 		    }
-
-		    System.out.println("\nObservations: ECB mode does not completely conceal information. "
-				    +" \n\tUnlike CBC, CFB, and OFB, general patterns from the original \n\timage are "
-				    +"still distinguishable after encryption.");
 
 
 		    for (String test : tests) {
@@ -151,20 +145,21 @@ public class Main {
 				    m = new Encryptor(op, bkey, biv);
 
 				    for (String file : files){
+					    java.net.URL imgURL = getClass().getResource("/res/"+file);
 					    System.out.println("\t\tEncrypting " + file + " -> ErrorTests/"
 							    + dir + "/" + test + "/enc_"+file);
+					    System.out.println("\t\tDecrypting ErrorTests/ecb/enc_" + file + " -> ErrorTests/"
+							    + dir + "/" + test + "/dec_"+file);
 					    if (test.equals(tests[0])) {
-						    m.encryptAndDecryptImageWithCtError("src/res/" + file, "ErrorTests/"
+						    m.encryptAndDecryptImageWithCtError(imgURL, "ErrorTests/"
 								    + dir + "/" + test + "/enc_" + file, "ErrorTests/" + dir + "/"
 								    + test + "/dec_" + file);
 					    }
 					    else {
-						    m.encryptAndDecryptImageWithPtError("src/res/" + file, "ErrorTests/"
+						    m.encryptAndDecryptImageWithPtError(imgURL, "ErrorTests/"
 								    + dir + "/" + test + "/enc_" + file, "ErrorTests/" + dir + "/"
 								    + test + "/dec_" + file);
 					    }
-					    System.out.println("\t\tDecrypting ErrorTests/ecb/enc_" + file + " -> ErrorTests/"
-							    + dir + "/" + test + "/dec_"+file);
 				    }
 			    }
 		    }
@@ -175,7 +170,7 @@ public class Main {
 	    }
     }
 
-	private static void readArgs(String [] args){
+	private  void readArgs(String [] args){
 		try {
 			switch (args[0]) {
 				case "-D":
@@ -251,7 +246,7 @@ public class Main {
 			}
 		}
 	}
-    private static void printErrorMessage(){
+    private  void printErrorMessage(){
 	    System.out.println("Invalid arguments given.");
 	    System.out.println("Valid execution arguments are:");
 	    System.out.println("\t-D");
@@ -260,7 +255,7 @@ public class Main {
 	    System.out.println("\t-s input [output] [-m mode] [-k key] [-iv init_vector]");
 	    System.out.println("For more information use -h execution.");
     }
-    private static void printHelpMessage(){
+    private  void printHelpMessage(){
 	    System.out.println("Valid execution arguments are:");
 	    System.out.println("\t-D");
 	    System.out.println("\t\truns the demo mode of the program.");

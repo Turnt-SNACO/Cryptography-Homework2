@@ -15,9 +15,11 @@ import java.awt.image.DataBufferByte;
 import java.awt.image.Raster;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Random;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -26,11 +28,10 @@ import javax.imageio.ImageIO;
 
 class Encryptor {
 	private final int BLOCK_SIZE = 16;
-	private int postfix;
 	private String mode;
 	//private byte[] key;
 	private byte[] iv;
-	private AES c, d;
+	private AES c;
 
 	/**
 	 * Constructs the Encryptor with specified Key and IV
@@ -49,11 +50,11 @@ class Encryptor {
 		//this.key = key;
 		this.iv = iv;
 		c = new AES();
-		d = new AES();
+		//d = new AES();
 		//c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
 		//d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
 		c.setKey(key);
-		d.setKey(key);
+		//d.setKey(key);
 	}
 
 	/**
@@ -89,17 +90,22 @@ class Encryptor {
 				}
 				break;
 			case "CFB":
-				byte[][] ciphertext = blocks;
-				feedback = iv;
+				byte[][] ciphertext = new byte[blockCount][BLOCK_SIZE];
+				for (int i = 0; i < blockCount; i++){
+					System.arraycopy(blocks[i],0,ciphertext[i],0,BLOCK_SIZE);
+				}
+				feedback = new byte[BLOCK_SIZE];
+				System.arraycopy(iv,0,feedback,0,BLOCK_SIZE);
 				for (int block = 0; block < blockCount; block++) {
 					feedback = c.encrypt(feedback);
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						ciphertext[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-
 					}
-					feedback = ciphertext[block];
+					System.arraycopy(ciphertext[block],0,feedback,0,BLOCK_SIZE);
 				}
-				blocks = ciphertext;
+				for (int i = 0; i < blockCount; i++){
+					System.arraycopy(ciphertext[i],0,blocks[i]  ,0,BLOCK_SIZE);
+				}
 				break;
 
 			case "OFB":
@@ -114,7 +120,7 @@ class Encryptor {
 		}
 		return toData(blocks);
 	}
-	
+
 	/**
 	 * Encrypts data using AES
 	 *
@@ -124,94 +130,30 @@ class Encryptor {
 	 * @throws IllegalBlockSizeException ignore
 	 * @author James Anderson
 	 */
-	private byte[] encryptWithError(byte[] data, boolean plaintextError) throws IllegalBlockSizeException, BadPaddingException {
-		byte[][] blocks = toBlocks(data);
-		int blockCount = blocks.length;
-		System.out.print("\t\tIntroducing error in block "+blockCount/3+" of ");
-		if (plaintextError)
-			System.out.println("plaintext...");
-		else
-			System.out.println("ciphertext...");
-		byte[] feedback;
-		byte[] error = {0,3,4,1,2,6,2,9,6,7,1,5,0,6,3,8};
-		switch (mode) {
-			case "ECB":
-				for (int block = 0; block < blockCount; block++) {
-					if (block==blockCount/3){
-						if (plaintextError) {
-							blocks[block] = c.encrypt(error);
-						}else {
-							blocks[block] = error;
-						}
-					}
-					else
-						blocks[block] = c.encrypt(blocks[block]);
-				}
-				break;
-			case "CBC":
-				for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-					blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
-				}
-				blocks[0] = c.encrypt(blocks[0]);
-				for (int block = 1; block < blockCount; block++) {
-					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						if (block==blockCount/3){
-							if (plaintextError) {
-								blocks[block] = c.encrypt(error);
-							}
-							else{
-								blocks[block] = error;
-							}
-						}
-						else
-							blocks[block][byt] = (byte) (blocks[block][byt] ^ blocks[block - 1][byt]);
-					}
-					blocks[block] = c.encrypt(blocks[block]);
-				}
-				break;
-			case "CFB":
-				byte[][] ciphertext = blocks;
-				feedback = iv;
-				for (int block = 0; block < blockCount; block++) {
-					feedback = c.encrypt(feedback);
-					if (block==blockCount/3){
-						if (plaintextError) {
-							blocks[block] = c.encrypt(error);
-						}
-						else{
-							blocks[block] = error;
-						}
-					}
-					else {
-						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-							ciphertext[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-						}
-					}
-					feedback = ciphertext[block];
-				}
-				blocks = ciphertext;
-				break;
-
-			case "OFB":
-				feedback = c.encrypt(iv);
-				for (int block = 0; block < blockCount; block++) {
-					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
-						if (block==blockCount/3){
-							if (plaintextError) {
-								blocks[block] = c.encrypt(error);
-							}
-							else {
-								blocks[block] = error;
-							}
-						}
-						else
-							blocks[block][byt] = (byte) (blocks[block][byt] ^ feedback[byt]);
-						feedback = c.encrypt(feedback);
-					}
-				}
-				break;
+	private byte[] encryptWithError(byte[] data, boolean plaintextError) throws IllegalBlockSizeException, BadPaddingException, NullPointerException {
+		Random r = new Random();
+		if (plaintextError){
+			byte[][] blocks = toBlocks(data);
+			r.nextBytes(blocks[45540]);
+			return encrypt(toData(blocks));
 		}
-		return toData(blocks);
+		else {
+			byte[] encrypted = encrypt(data);
+			byte[][] blocks = toBlocks(encrypted);
+			r.nextBytes(blocks[45540]);
+			encrypted = toData(blocks);
+			return encrypted;
+		}
+	}
+
+	private int corruptedBytes(byte[] original, byte[] corrupted){
+		int count = 0;
+		for (int x = 0; x < original.length; x++) {
+			if (original[x]!=corrupted[x]){
+				count++;
+			}
+		}
+		return count;
 	}
 
 	/**
@@ -222,7 +164,7 @@ class Encryptor {
 	 * @throws IllegalBlockSizeException ignore
 	 * @author James Anderson
 	 */
-	byte[] decrypt(byte[] data) throws IllegalBlockSizeException {
+	private byte[] decrypt(byte[] data) throws IllegalBlockSizeException {
 		// int blockCount = data.length / 16;
 		byte[][] blocks = toBlocks(data);
 		int blockCount = blocks.length;
@@ -230,23 +172,24 @@ class Encryptor {
 			switch (mode) {
 				case "ECB":
 					for (int block = 0; block < blockCount; block++) {
-						blocks[block] = d.decrypt(blocks[block]);
+						blocks[block] = c.decrypt(blocks[block]);
 					}
 					break;
 				case "CBC":
 					byte[] prev = new byte[BLOCK_SIZE];
 					System.arraycopy(blocks[0],0,prev,0,BLOCK_SIZE);
-					blocks[0] = d.decrypt(blocks[0]);
+					blocks[0] = c.decrypt(blocks[0]);
 					for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 						blocks[0][byt] = (byte) (blocks[0][byt] ^ iv[byt]);
 					}
 					for (int block = 1; block < blockCount; block++) {
-						byte[] nextPrev = blocks[block];
-						blocks[block] = d.decrypt(blocks[block]);
+						byte[] nextPrev = new byte[BLOCK_SIZE];
+						System.arraycopy(blocks[block],0,nextPrev,0,BLOCK_SIZE);
+						blocks[block] = c.decrypt(blocks[block]);
 						for (int byt = 0; byt < 16; byt++) {
 							blocks[block][byt] = (byte) (blocks[block][byt] ^ prev[byt]);
 						}
-						prev = nextPrev;
+						System.arraycopy(nextPrev,0,prev,0,BLOCK_SIZE);
 					}
 					break;
 				case "CFB":
@@ -254,13 +197,14 @@ class Encryptor {
 					for (byte[] block : blocks) {
 						System.arraycopy(block, 0, ciphertext[Arrays.asList(blocks).indexOf(block)], 0, BLOCK_SIZE);
 					}
-					byte[] backfeed = iv;
+					byte[] backfeed = new byte[BLOCK_SIZE];
+					System.arraycopy(iv,0,backfeed,0,BLOCK_SIZE);
 					for (int block = 0; block < blockCount; block++) {
 						backfeed = c.encrypt(backfeed);
 						for (int byt = 0; byt < BLOCK_SIZE; byt++) {
 							blocks[block][byt] = (byte) (blocks[block][byt] ^ backfeed[byt]);
 						}
-						backfeed = ciphertext[block];
+						System.arraycopy(ciphertext[block],0,backfeed,0,BLOCK_SIZE);
 					}
 					break;
 				case "OFB":
@@ -289,10 +233,10 @@ class Encryptor {
 	 * @throws IllegalBlockSizeException ignore
 	 * @throws BadPaddingException ignore
 	 */
-	boolean encryptImage(String inputURL, String outputURL)
+	boolean encryptImage(URL inputURL, String outputURL)
 			throws IllegalBlockSizeException, BadPaddingException {
 		try {
-			BufferedImage image = ImageIO.read(new File(inputURL));
+			BufferedImage image = ImageIO.read(inputURL);
 			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
 			byte[] encrypted = encrypt(pixels);
 			BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(),
@@ -307,27 +251,27 @@ class Encryptor {
 		return true;
 	}
 
-
 	/**
 	 * Decrypts an image located at pathToInput while preserving the header and
 	 * saves to pathToOutput. Returns false if unsuccessful.
 	 *
-	 * @param pathToInput - String with URL to input file
-	 * @param pathToOutput - String with URL to output file
+	 * @param inputURL - String with URL to input file
+	 * @param outputURL - String with URL to output file
 	 * @throws IllegalBlockSizeException ignore
 	 * @throws BadPaddingException ignore
 	 * @return boolean
 	 */
-	boolean decryptImage(String pathToInput, String pathToOutput)
+	boolean decryptImage(URL inputURL, String outputURL)
 			throws IllegalBlockSizeException, BadPaddingException {
-		File input = new File(pathToInput);
-		File output = new File(pathToOutput);
+		//File input = new File(pathToInput);
+		File output = new File(outputURL);
 		try {
-			BufferedImage image = ImageIO.read(input);
+			BufferedImage image = ImageIO.read(inputURL);
 			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
 			byte[] decrypted = decrypt(pixels);
 			BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(),
 					BufferedImage.TYPE_3BYTE_BGR);
+			assert decrypted != null;
 			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
 					new DataBufferByte(decrypted, decrypted.length), new Point()));
 			ImageIO.write(outImage, "bmp", output);
@@ -337,49 +281,56 @@ class Encryptor {
 		}
 		return true;
 	}
-	public void encryptAndDecryptImageWithPtError(String inputURL, String outputUrlEnc, String outputUrlDec){
+	void encryptAndDecryptImageWithPtError(URL inputURL, String outputUrlEnc, String outputUrlDec){
 		encryptAndDecryptImageWithError(inputURL, outputUrlEnc, outputUrlDec, true);
 	}
-	public void encryptAndDecryptImageWithCtError(String inputURL, String outputUrlEnc, String outputUrlDec){
+	void encryptAndDecryptImageWithCtError(URL inputURL, String outputUrlEnc, String outputUrlDec){
 		encryptAndDecryptImageWithError(inputURL, outputUrlEnc, outputUrlDec, false);
 	}
 
-
-	public void encryptAndDecryptImageWithError(String inputURL, String outputUrlEnc, String outputUrlDec, boolean ptError) {
-		File input = new File(inputURL);
+	private void encryptAndDecryptImageWithError(URL inputURL, String outputUrlEnc, String outputUrlDec, boolean ptError) {
+		//File input = new File(inputURL);
 		File outputEnc = new File(outputUrlEnc);
 		File outputDec = new File(outputUrlDec);
 		try {
-			BufferedImage image = ImageIO.read(input);
+			BufferedImage image = ImageIO.read(inputURL);
 			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
 			byte[] encrypted = encryptWithError(pixels, ptError);
 			byte[] decrypted = decrypt(encrypted);
+			int lost = corruptedBytes(pixels,decrypted);
+			System.out.println("\t\t\tBytes lost: "+lost);
+			System.out.println("\t\t\t%Corrupted = "+getPercentCorrupted(pixels.length,lost));
 
 			BufferedImage outImage = new BufferedImage(image.getWidth(), image.getHeight(),
 					BufferedImage.TYPE_3BYTE_BGR);
 			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
 					new DataBufferByte(encrypted, encrypted.length), new Point()));
 			ImageIO.write(outImage, "bmp", outputEnc);
+			assert decrypted != null;
 			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
 					new DataBufferByte(decrypted, decrypted.length), new Point()));
 			ImageIO.write(outImage, "bmp", outputDec);
 		} catch (IOException e) {
 			System.out.println("Error with image path!");
-		} catch (IllegalBlockSizeException e) {
-			e.printStackTrace();
-		} catch (BadPaddingException e) {
+		} catch (IllegalBlockSizeException | BadPaddingException e) {
 			e.printStackTrace();
 		}
 
 	}
-
-
-	public void encryptAndDecryptImage(String inputURL, String outputUrlEnc, String outputUrlDec) {
-		File input = new File(inputURL);
+	private double getPercentCorrupted(int dataLength, int lost){
+		double blocksCorrupted=lost/16;
+		if (lost%16!=0){
+			blocksCorrupted+=1;
+		}
+		double dl = dataLength+0.0;
+		return blocksCorrupted/dl;
+	}
+	public void encryptAndDecryptImage(URL inputURL, String outputUrlEnc, String outputUrlDec) {
+		//File input = new File(inputURL);
 		File outputEnc = new File(outputUrlEnc);
 		File outputDec = new File(outputUrlDec);
 		try {
-			BufferedImage image = ImageIO.read(input);
+			BufferedImage image = ImageIO.read(inputURL);
 			byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
 			byte[] encrypted = encrypt(pixels);
 			byte[] decrypted = decrypt(encrypted);
@@ -389,19 +340,16 @@ class Encryptor {
 			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
 					new DataBufferByte(encrypted, encrypted.length), new Point()));
 			ImageIO.write(outImage, "bmp", outputEnc);
+			assert decrypted != null;
 			outImage.setData(Raster.createRaster(outImage.getSampleModel(),
 					new DataBufferByte(decrypted, decrypted.length), new Point()));
 			ImageIO.write(outImage, "bmp", outputDec);
 		} catch (IOException e) {
 			System.out.println("Error with image path!");
-		} catch (IllegalBlockSizeException e) {
-			e.printStackTrace();
-		} catch (BadPaddingException e) {
+		} catch (IllegalBlockSizeException | BadPaddingException e) {
 			e.printStackTrace();
 		}
 	}
-
-
 
 	/**
 	 * Transforms byte[] to byte[][] (Array of blocks)
@@ -412,7 +360,7 @@ class Encryptor {
 	 */
 	private byte[][] toBlocks(byte[] data) {
 		int blockCount = data.length / 16;
-		postfix = 0;
+		int postfix = 0;
 		if (((double) data.length / 16.0) % 16 != 0) {
 			blockCount += 1;
 		}
