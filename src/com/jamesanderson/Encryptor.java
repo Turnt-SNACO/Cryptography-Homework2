@@ -10,22 +10,25 @@ package com.jamesanderson;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.Point;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-import java.awt.image.Raster;
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Random;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.Raster;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Random;
 
 class Encryptor {
 	private final int BLOCK_SIZE = 16;
@@ -253,6 +256,33 @@ class Encryptor {
 			ImageIO.write(outImage, "jpg", new File(outputURL));
 		} catch (IOException e) {
 			System.out.println("Error with image path!");
+			return false;
+		}
+		return true;
+	}
+
+	boolean encryptText(String inputurl, String outputURL) throws BadPaddingException, IllegalBlockSizeException {
+		try{
+			Path p = Paths.get(inputurl);
+			byte[] data = Files.readAllBytes(p);
+			byte[] e = encrypt(data);
+			FileOutputStream f = new FileOutputStream(outputURL);
+			f.write(e);
+			f.close();
+		} catch (IOException e) {
+			return false;
+		}
+		return true;
+	}
+	boolean decryptText(String inputurl, String outputURL) throws IllegalBlockSizeException {
+		try{
+			Path p = Paths.get(inputurl);
+			byte[] data = Files.readAllBytes(p);
+			byte[] e = decrypt(data);
+			FileOutputStream f = new FileOutputStream(outputURL);
+			f.write(e);
+			f.close();
+		} catch (IOException e) {
 			return false;
 		}
 		return true;

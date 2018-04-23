@@ -6,6 +6,9 @@
 
 package com.jamesanderson;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -16,12 +19,9 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Random;
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
 public class Main {
-	private  boolean imageMode = false, stringMode = false, decryptMode = false, demoMode=false;
+	private  boolean imageMode = false, stringMode = false, decryptMode = false, demoMode=false, bmode=false;
 	private  String input = null, output = null, mode = null, key = null, iv = null;
 	private  Encryptor e;
 	private  byte[] byteKey, byteIV;
@@ -35,12 +35,30 @@ public class Main {
             m.doString();
         } else if (m.demoMode) {
             m.doDemo();
-        } else {
+        } else if (m.bmode) {
+        	m.doBmode();
+		} else{
             System.out.println("Unexpected error occurred: Could not discern execution mode.");
         }
 
     }
-
+	private void doBmode(){
+		try {
+			e = new Encryptor(mode, byteKey, byteIV);
+			if (!decryptMode) e.encryptText(input, output);
+			else e.decryptText(input, output);
+		} catch (InvalidKeyException e1) {
+			e1.printStackTrace();
+		} catch (NoSuchAlgorithmException e1) {
+			e1.printStackTrace();
+		} catch (NoSuchPaddingException e1) {
+			e1.printStackTrace();
+		} catch (BadPaddingException e1) {
+			e1.printStackTrace();
+		} catch (IllegalBlockSizeException e1) {
+			e1.printStackTrace();
+		}
+	}
     private  void doString() throws NoSuchPaddingException, BadPaddingException, IllegalBlockSizeException {
 	    try {
 		    e = new Encryptor(mode, byteKey, byteIV);
@@ -192,6 +210,20 @@ public class Main {
 				case "-s":
 					stringMode = true;
 					input = args[1];
+					for (String arg : args) {
+						switch (arg) {
+							case "-m": mode = args[Arrays.asList(args).indexOf(arg) + 1]; break;
+							case "-k": key = args[Arrays.asList(args).indexOf(arg) + 1]; break;
+							case "-iv": iv = args[Arrays.asList(args).indexOf(arg) + 1]; break;
+							case "-o": output = args[Arrays.asList(args).indexOf(arg) + 1]; break;
+							case "-d": decryptMode = true; break;
+						}
+					}
+					break;
+				case "-b":
+					System.out.println("B MADE");
+					input = args[1];
+					bmode=true;
 					for (String arg : args) {
 						switch (arg) {
 							case "-m": mode = args[Arrays.asList(args).indexOf(arg) + 1]; break;
