@@ -221,7 +221,6 @@ public class Main {
 					}
 					break;
 				case "-b":
-					System.out.println("B MADE");
 					input = args[1];
 					bmode=true;
 					for (String arg : args) {
